@@ -1,0 +1,64 @@
+# Start everything:          docker compose up --build
+# Retrain inside Docker:     docker compose run --rm --build trainer
+# Values like ${POSTGRES_PASSWORD} come from the .env file (copy .env.example to .env).
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No host port: only the API needs the database. Inspect it with
+    #   docker compose exec db psql -U <user> -d <db>
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.19.0
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+    volumes:
+      # Same folder the local MLflow server uses, so runs show up either way.
+      - ./mlflow_data:/mlflow
+    ports:
+      - "5000:5000"
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      MODEL_VERSION: ${MODEL_VERSION:-unversioned}
+      DRIFT_WINDOW: ${DRIFT_WINDOW:-100}
+      DRIFT_THRESHOLD: ${DRIFT_THRESHOLD:-2.0}
+      DRIFT_KS_P_VALUE: ${DRIFT_KS_P_VALUE:-0.01}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  # One-off job, not started by "up": docker compose run --rm --build trainer
+  trainer:
+    build: .
+    profiles: ["training"]
+    command: ["sh", "training/run_experiments.sh"]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      # The image has no git, so tell MLflow not to look for it (silences a warning).
+      GIT_PYTHON_REFRESH: quiet
+    volumes:
+      # The winning model is written back to ./models on the host.
+      - ./models:/app/models
+    depends_on:
+      - mlflow
+
+volumes:
+  pgdata:

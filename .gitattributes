@@ -1,0 +1,4 @@
+# Keep LF line endings so shell scripts and Docker files still work after a Windows checkout.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.joblib binary

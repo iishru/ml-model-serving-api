@@ -1,0 +1,29 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# MLflow tracking data (runs and artifacts live on the tracking server, not in git)
+mlruns/
+mlartifacts/
+mlflow_data/
+
+# Personal notes and the original build brief (not part of the project)
+INTERVIEW_PREP.md
+PROMPT_ML_Model_Serving_API.md
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Note: models/model.joblib and models/baseline_stats.json ARE committed (about 5 MB),
+# so a fresh clone can start the API without training first.
